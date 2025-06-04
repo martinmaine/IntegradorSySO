@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Base de datos MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: estudiantes_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password123
+      MYSQL_DATABASE: estudiantes_app
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - estudiantes_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Backend Python (Flask)
+  backend:
+    build: ./backend
+    container_name: estudiantes_backend
+    restart: always
+    environment:
+      - DB_HOST=mysql
+      - DB_NAME=estudiantes_app
+      - DB_USER=app_user
+      - DB_PASSWORD=app_password
+      - DB_PORT=3306
+      - FLASK_ENV=development
+    ports:
+      - "5000:5000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - estudiantes_network
+    volumes:
+      - ./backend:/app
+
+  # Frontend React (Vite)
+  frontend:
+    build: ./frontend
+    container_name: estudiantes_frontend
+    restart: always
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - estudiantes_network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+# Volúmenes persistentes
+volumes:
+  mysql_data:
+    driver: local
+
+# Red personalizada
+networks:
+  estudiantes_network:
+    driver: bridge
